@@ -1,1 +1,0 @@
-# BSC RPA NewconWeb Adapter

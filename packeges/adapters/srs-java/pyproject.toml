@@ -1,0 +1,27 @@
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "bsc-rpa-adapter-srs-java"
+version = "1.0.0"
+description = "SRS Web adapter package for BSC RPA Framework"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "BSC-BIT" }]
+dependencies = [ "jab-rpa" ]
+
+[tool.poetry-monoranger-plugin]
+enabled = true
+monorepo-root = "../../../"
+version-pinning-rule = '=='
+
+[[tool.poetry.source]]
+name = "Artifact"
+priority = "primary"
+url = "https://artifactory.gmfinancial.com/artifactory/api/pypi/remote-pip/simple"
+
+[[tool.poetry.source]]
+name = "ArtifactExtra"
+priority = "supplemental"
+url = "https://artifactory.gmfinancial.com/artifactory/api/pypi/virtual-pypi/simple"

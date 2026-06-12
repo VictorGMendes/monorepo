@@ -1,0 +1,21 @@
+gmfleet:
+  username: "GRQOSLJG"
+  password: "Gmfinancial@12345"
+  base_url: "https://uat.gmfleet.com.br"
+
+playwright:
+  headless: false
+  timeout_ms: 30000
+  trace: false
+
+io:
+  log_folder: logs
+  screenshot_folder: logs
+
+reporting:
+  local_run_dir: local_dbs
+  shared_run_dir: shared_dbs
+  notif_recipients: null
+    # to:
+    # cc:
+    # bcc:
