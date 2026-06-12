@@ -1,211 +1,169 @@
 import logging
 
+import pandas as pd
 from playwright.sync_api import Page
 from bsc_rpa_core.reporting import task
 
 from .steps import (
+    # Playwright
     acessar_frota_total,
+    acessar_importacao_exportacao,
     acessar_menu_endossos,
     acessar_modulo_relatorios,
     acessar_modulo_seguros,
     acessar_portal,
     baixar_frota_total,
+    clicar_confirmar,
     executar_exportacoes_apolice,
     exportar_relatorio,
     preencher_login,
-    clicar_confirmar,
     validar_login,
-    acessar_importacao_exportacao
-    
+    # Planilhas
+    buscar_arquivos_downloads,
+    carregar_planilha,
+    processar_apolice_endosso,
+    processar_exportacao_exclusao,
+    processar_exportacao_inclusao,
+    mover_para_processados,
 )
 
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# PLAYWRIGHT — tasks de extração
+# =============================================================================
+
 @task(
-    record_args=("base_url", "username"),
+    record_args=("url", "username"),
     record_out=False,
 )
-def realizar_login(
-    page: Page,
-    url: str,
-    username: str,
-    password: str,
-) -> None:
-    logger.debug(
-        f"Iniciando login com url={url!r}, username={username!r}"
-    )
-
+def realizar_login(page: Page, url: str, username: str, password: str) -> None:
+    logger.debug(f"Iniciando login | url={url!r} username={username!r}")
     acessar_portal(page, url)
     preencher_login(page, username, password)
     clicar_confirmar(page)
     validar_login(page)
-
-    logger.debug(
-        f"Login realizado com sucesso para username={username!r}"
-    )
+    logger.debug(f"Login realizado | username={username!r}")
 
 
-
-def baixar_relatorio_endossos(page: Page, base_url: str):
-    logger.debug("Entrando no módulo Seguros")
-
+def baixar_relatorio_endossos(page: Page, base_url: str) -> None:
+    logger.debug("Acessando módulo Seguros")
     acessar_modulo_seguros(page)
 
-    logger.debug("Acessando menu de endossos")
-
+    logger.debug("Acessando menu Apólice Endosso")
     acessar_menu_endossos(page)
 
-    logger.debug("Exportando relatório")
-
+    logger.debug("Exportando relatório de endossos")
     arquivo = exportar_relatorio(page)
+    logger.debug(f"Download: {arquivo}")
 
-    logger.debug(f"Download realizado: {arquivo}")
-    
-    logger.debug("Indo para tela de importação/exportação")
-
+    logger.debug("Acessando Importação / Exportação Dados da Apólice")
     acessar_importacao_exportacao(page)
-    
-    logger.debug("Executando exportação da apólice")
 
-    
-    logger.debug("Executando exportações da apólice")
-
+    logger.debug("Executando exportações (Inclusão e Exclusão)")
     arquivos = executar_exportacoes_apolice(page)
-
     logger.debug(f"Arquivos gerados: {arquivos}")
 
 
-
-
-def baixar_relatorio_frota_total(page: Page, base_url: str):
-    logger.debug("Entrando no módulo Relatórios")
-
+def baixar_relatorio_frota_total(page: Page, base_url: str) -> None:
+    logger.debug("Acessando módulo Relatórios")
     acessar_modulo_relatorios(page)
 
-    logger.debug("Acessando Frota Total (com fallback de ambiente)")
-
+    logger.debug("Acessando Frota Total")
     acessar_frota_total(page)
 
-    logger.debug("Baixando último arquivo de Frota Total")
-
+    logger.debug("Baixando arquivo de Frota Total")
     arquivo = baixar_frota_total(page)
-
     logger.debug(f"Arquivo baixado: {arquivo}")
 
-    # volta para o menu
     page.locator("#HEADER_MPAGE").click()
 
 
+# =============================================================================
+# PLANILHAS — tasks de processamento
+# =============================================================================
 
-def tratar_inclusao(df_inclusao, df_frota):
-    logger.info("Iniciando tratamento de inclusão")
+def carregar_planilhas(pasta_downloads: str) -> dict:
+    """
+    Localiza e carrega os 4 arquivos da pasta de downloads.
+    Retorna dict com DataFrames: endosso, frota, exp_inc, exp_exc.
+    """
+    logger.info(f"Buscando arquivos em: {pasta_downloads}")
+    caminhos = buscar_arquivos_downloads(pasta_downloads)
 
-    df_frota["placa"] = df_frota["placa"].astype(str).str.strip().str.upper()
+    logger.info(f"Endosso:        {caminhos['endosso']}")
+    logger.info(f"Frota Total:    {caminhos['frota']}")
+    logger.info(f"Exp Inclusão:   {caminhos['exp_inc']}")
+    logger.info(f"Exp Exclusão:   {caminhos['exp_exc']}")
 
-    df = df_inclusao.merge(
-        df_frota[["placa", "Status Veículo Contrato"]],
-        on="placa",
-        how="left"
+    # Apólice Endosso — header na linha 4 (coluna chave: Placa)
+    df_endosso = carregar_planilha(caminhos["endosso"], "Placa")
+
+    # Frota Total — header na linha 1 (coluna chave: Placa)
+    df_frota = carregar_planilha(caminhos["frota"], "Placa")
+
+    # Exportação Inclusão — header na linha 1 (coluna chave: Placa)
+    df_exp_inc = carregar_planilha(caminhos["exp_inc"], "Placa")
+
+    # Exportação Exclusão — header na linha 1 (coluna chave: Chassi)
+    df_exp_exc = carregar_planilha(caminhos["exp_exc"], "Chassi")
+
+    logger.info(
+        f"Planilhas carregadas | "
+        f"endosso={df_endosso.shape} frota={df_frota.shape} "
+        f"exp_inc={df_exp_inc.shape} exp_exc={df_exp_exc.shape}"
     )
 
-    logger.info(f"Após merge inclusão: {len(df)} registros")
-
-    df = df[
-        (df["Status Veículo Contrato"].notna()) &
-        (df["Status Veículo Contrato"] != "Devolvido")
-    ]
-
-    logger.info(f"Inclusões válidas após filtro: {len(df)} registros")
-
-    return df
+    return {
+        "endosso": df_endosso,
+        "frota": df_frota,
+        "exp_inc": df_exp_inc,
+        "exp_exc": df_exp_exc,
+        "caminhos": caminhos,
+    }
 
 
-def tratar_exclusao(df_exclusao, df_frota):
-    logger.info("Iniciando tratamento de exclusão")
+def processar_planilhas(dados: dict) -> dict:
+    """
+    Executa todo o processamento de negócio:
+      1. Separar Apólice Endosso em Inclusão / Exclusão (com dedup por data).
+      2. Processar Exportação Inclusão (status + filtros + divergências).
+      3. Processar Exportação Exclusão (placa via chassi + status + filtros + divergências).
 
-    df_frota["placa"] = df_frota["placa"].astype(str).str.strip().str.upper()
+    Retorna dict com os DataFrames finais e lista consolidada de divergências.
+    """
+    df_endosso = dados["endosso"]
+    df_frota = dados["frota"]
+    df_exp_inc = dados["exp_inc"]
+    df_exp_exc = dados["exp_exc"]
 
-    df = df_exclusao.merge(
-        df_frota[["placa", "Status Veículo Contrato"]],
-        on="placa",
-        how="left"
+    # 1. Apólice Endosso
+    logger.info("Processando Apólice Endosso")
+    df_apolice_inc, df_apolice_exc = processar_apolice_endosso(df_endosso)
+
+    # 2. Exportação Inclusão
+    logger.info("Processando Exportação Inclusão")
+    df_final_inc, diverg_inc = processar_exportacao_inclusao(
+        df_exp_inc, df_apolice_inc, df_frota
     )
 
-    logger.info(f"Após merge exclusão: {len(df)} registros")
-
-    df = df[
-        (df["Status Veículo Contrato"].notna()) &
-        (df["Status Veículo Contrato"] != "Ativo")
-    ]
-
-    logger.info(f"Exclusões válidas após filtro: {len(df)} registros")
-
-    return df
-
-def tratar_exportacao_inclusao(df_exp, df_apolice_inc, df_frota):
-    logger.info("Tratando exportação inclusão")
-
-    df_exp["placa"] = df_exp["placa"].astype(str).str.strip().str.upper()
-
-    # remover duplicados
-    df_exp = df_exp.drop_duplicates(subset=["placa"])
-
-    # cruzar com frota (status)
-    df = df_exp.merge(
-        df_frota[["placa", "Status Veículo Contrato"]],
-        on="placa",
-        how="left"
+    # 3. Exportação Exclusão
+    logger.info("Processando Exportação Exclusão")
+    df_final_exc, diverg_exc = processar_exportacao_exclusao(
+        df_exp_exc, df_apolice_exc, df_frota
     )
 
-    # manter só placas da apólice inclusão
-    placas_validas = df_apolice_inc["placa"].unique()
+    todas_divergencias = diverg_inc + diverg_exc
 
-    df = df[df["placa"].isin(placas_validas)]
+    if todas_divergencias:
+        logger.warning(f"Total de divergências encontradas: {len(todas_divergencias)}")
+    else:
+        logger.info("Nenhuma divergência encontrada")
 
-    # remover devolvido / vazio
-    df = df[
-        (df["Status Veículo Contrato"].notna()) &
-        (df["Status Veículo Contrato"] != "Devolvido")
-    ]
-
-    logger.info(f"Inclusão final: {len(df)} registros")
-    return df
-
-def tratar_exportacao_exclusao(df_exp_exc, df_apolice_exc, df_frota):
-    logger.info("Tratando exportação exclusão")
-
-    # ➜ merge por chassi → pegar placa
-    df = df_exp_exc.merge(
-        df_frota[["Chassi", "placa"]],
-        on="Chassi",
-        how="left"
-    )
-
-    # remover sem placa
-    df = df[df["placa"].notna()]
-
-    df["placa"] = df["placa"].astype(str).str.strip().str.upper()
-
-    # remover duplicados
-    df = df.drop_duplicates(subset=["placa"])
-
-    # status
-    df = df.merge(
-        df_frota[["placa", "Status Veículo Contrato"]],
-        on="placa",
-        how="left"
-    )
-
-    # limitar ao que existe na apólice exclusão
-    placas_validas = df_apolice_exc["placa"].unique()
-    df = df[df["placa"].isin(placas_validas)]
-
-    # remover ativo / vazio
-    df = df[
-        (df["Status Veículo Contrato"].notna()) &
-        (df["Status Veículo Contrato"] != "Ativo")
-    ]
-
-    logger.info(f"Exclusão final: {len(df)} registros")
-    return df
+    return {
+        "df_inclusao": df_final_inc,
+        "df_exclusao": df_final_exc,
+        "df_apolice_endosso": df_endosso,
+        "divergencias": todas_divergencias,
+    }
