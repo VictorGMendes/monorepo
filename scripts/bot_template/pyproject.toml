@@ -1,0 +1,42 @@
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "bsc-rpa-{botNameLower}"
+version = "1.0.0"
+description = "{botName}" # Place a brief bot description here
+authors = [
+    {name = "BSC-BIT"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+
+[project.scripts]
+run_{botNameLower} = 'bsc_rpa_{botNameLower}.main:cli'
+write_{botNameLower}_config_template = 'bsc_rpa_{botNameLower}.config:Config.write_yaml_template'
+
+[tool.poetry-monorepo-dependency-plugin]
+enable = true
+
+[tool.poetry.dependencies]
+bsc-rpa-core = {path = "../../core", develop = true}
+bsc-rpa-adapter-outlook = {path = "../../adapters/apps/outlook", develop = true}
+
+# Other bsc-rpa dependencies here, for example:
+# bsc-rpa-adapter-playwright = {path = "../../adapters/techs/playwright", develop = true}
+
+# Other non-bsc-rpa dependencies here, for example:
+# openpyxl = ">=3.1.5,<4"
+
+[[tool.poetry.source]]
+name = "Artifact"
+priority = "primary"
+url = "https://artifactory.gmfinancial.com/artifactory/api/pypi/remote-pip/simple"
+
+[[tool.poetry.source]]
+name = "ArtifactExtra"
+priority = "supplemental"
+url = "https://artifactory.gmfinancial.com/artifactory/api/pypi/virtual-pypi/simple"
+
+

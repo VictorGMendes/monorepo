@@ -1,0 +1,42 @@
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "bsc-rpa-inclusao_exclusao_apolice"
+version = "1.0.0"
+description = "inclusao_exclusao_apolice" # Place a brief bot description here
+authors = [
+    {name = "BSC-BIT"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+
+[project.scripts]
+run_inclusao_exclusao_apolice = 'bsc_rpa_inclusao_exclusao_apolice.main:cli'
+write_inclusao_exclusao_apolice_config_template = 'bsc_rpa_inclusao_exclusao_apolice.config:Config.write_yaml_template'
+
+[tool.poetry-monorepo-dependency-plugin]
+enable = true
+
+[tool.poetry.dependencies]
+bsc-rpa-core = {path = "../../core", develop = true}
+bsc-rpa-adapter-outlook = {path = "../../adapters/outlook", develop = true}
+
+# Other bsc-rpa dependencies here, for example:
+# bsc-rpa-adapter-playwright = {path = "../../adapters/playwright", develop = true}
+
+# Other non-bsc-rpa dependencies here, for example:
+# openpyxl = ">=3.1.5,<4"
+
+[[tool.poetry.source]]
+name = "Artifact"
+priority = "primary"
+url = "https://artifactory.gmfinancial.com/artifactory/api/pypi/remote-pip/simple"
+
+[[tool.poetry.source]]
+name = "ArtifactExtra"
+priority = "supplemental"
+url = "https://artifactory.gmfinancial.com/artifactory/api/pypi/virtual-pypi/simple"
+
+

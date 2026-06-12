@@ -1,0 +1,1 @@
+# BSC RPA Astra Adapter

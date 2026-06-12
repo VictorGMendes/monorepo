@@ -1,0 +1,10 @@
+io:
+  log_folder: logs
+
+reporting:
+  local_run_dir: local_dbs
+  shared_run_dir: shared_dbs
+  notif_recipients:
+    to:
+    cc:
+    bcc:
